@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#100b1e">
+  <title>MQTT Voice Control</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0c0815;--panel:#171124;--line:#302342;--muted:#a69ab8;--text:#f6f0ff;--purple:#a879ff;--pink:#e39aff;--green:#52e0a0;--red:#ff7189}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% -18%,#38205c 0,transparent 53%),var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:30px 18px 42px}
+    main{width:min(760px,100%);margin:auto}.brand{display:flex;align-items:center;gap:12px;color:#d8c8f2;font-size:12px;letter-spacing:.2em;font-weight:700}.brand-mark{display:grid;place-items:center;width:35px;height:35px;border:1px solid #68468e;border-radius:12px;color:var(--pink);font-size:19px;background:#21152f}
+    h1{font-size:clamp(28px,6vw,42px);margin:25px 0 7px;letter-spacing:-.04em}.sub{color:var(--muted);margin:0 0 24px;font-size:14px}.card{background:linear-gradient(145deg,rgba(31,23,46,.96),rgba(19,14,29,.96));border:1px solid var(--line);border-radius:22px;padding:22px;margin:14px 0;box-shadow:0 18px 55px #0003}.connection{display:flex;align-items:center;justify-content:space-between;gap:14px}.eyebrow{color:var(--muted);font-size:11px;letter-spacing:.15em;font-weight:700}.status{display:flex;align-items:center;gap:9px;margin-top:9px;font-size:16px;font-weight:650}.dot{width:10px;height:10px;border-radius:50%;background:#948aa1;box-shadow:0 0 14px currentColor}.dot.connected{background:var(--green);color:var(--green)}.dot.connecting{background:#ffc96a;color:#ffc96a;animation:pulse 1.2s infinite}.dot.error{background:var(--red);color:var(--red)}.small{color:var(--muted);font-size:12px;line-height:1.6}.topic{font:12px ui-monospace,SFMono-Regular,monospace;border:1px solid #47345e;color:#d9c1ff;padding:8px 11px;border-radius:10px;white-space:nowrap}
+    .controls{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.control{border:1px solid #65448d;border-radius:17px;background:linear-gradient(145deg,#34204d,#21152f);color:white;padding:18px 12px;min-height:105px;text-align:left;cursor:pointer;transition:transform .15s,border-color .15s,filter .15s}.control:hover{transform:translateY(-2px);border-color:#c393ff;filter:brightness(1.14)}.control:active{transform:scale(.98)}.control b{display:block;font-size:18px;margin:8px 0 3px}.control span{font-size:11px;color:#c4afd9}.icon{font-size:20px;color:var(--pink)}
+    .voice{display:flex;align-items:center;gap:18px}.mic{flex:0 0 66px;width:66px;height:66px;border-radius:50%;border:1px solid #9063c1;background:linear-gradient(145deg,#8e54d8,#5d36a1);color:white;font-size:25px;cursor:pointer;box-shadow:0 0 24px #a45dff38}.mic.listening{animation:halo 1.4s infinite}.mic:disabled{opacity:.5;cursor:not-allowed}.voice-copy{flex:1}.voice-copy h2{font-size:18px;margin:0 0 6px}.voice-copy p{font-size:13px;color:var(--muted);margin:0;line-height:1.6}.voice-result{margin-top:17px;border:1px solid #352848;background:#100b19;border-radius:14px;padding:14px 15px;min-height:62px}.result-label{font-size:10px;color:var(--muted);letter-spacing:.14em;font-weight:700}.result-text{margin-top:6px;font-size:14px;overflow-wrap:anywhere}.result-text.success{color:var(--green)}.result-text.error{color:var(--red)}.result-text.pending{color:#e4c7ff}.activity{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:15px}.activity-item{border:1px solid #302342;border-radius:14px;padding:14px;min-width:0}.activity-item .value{margin-top:8px;font:13px ui-monospace,SFMono-Regular,monospace;overflow-wrap:anywhere}.footer{margin:20px 4px 0;color:#827792;font-size:11px;line-height:1.7;text-align:center}.hidden{display:none!important}
+    @keyframes pulse{50%{opacity:.5}}@keyframes halo{50%{box-shadow:0 0 0 12px #a879ff1f,0 0 38px #a45dff88}}
+    @media(max-width:560px){body{padding:22px 14px 32px}.card{padding:18px;border-radius:19px}.controls{grid-template-columns:1fr;gap:9px}.control{min-height:76px;padding:13px 15px;display:grid;grid-template-columns:32px 1fr;align-items:center}.control .icon{grid-row:span 2}.control b{margin:0}.control span{margin-top:3px}.connection{align-items:flex-start;flex-direction:column}.voice{align-items:flex-start}.mic{width:58px;height:58px;flex-basis:58px}.activity{grid-template-columns:1fr 1fr}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="brand"><span class="brand-mark">⌁</span> MQTT CONTROL CENTER</div>
+  <h1>語音控制面板</h1>
+  <p class="sub">按鈕或中文語音都可以控制 B1、B2、B3</p>
+  <section class="card">
+    <div class="connection"><div><div class="eyebrow">BROKER CONNECTION</div><div class="status"><span id="dot" class="dot connecting"></span><span id="connectionText">正在連線…</span></div><div id="connectionDetail" class="small">broker.emqx.io · MQTT over secure WebSocket</div></div><span class="topic">jlab/z</span></div>
+  </section>
+  <section class="card"><div class="eyebrow">MANUAL CONTROL</div><div class="small" style="margin-top:6px">點選按鈕立即送出指令</div>
+    <div class="controls">
+      <button class="control" data-command="b1 on"><span class="icon">◉</span><b>B1 開啟</b><span>送出 b1 on</span></button>
+      <button class="control" data-command="b2 off"><span class="icon">◌</span><b>B2 關閉</b><span>送出 b2 off</span></button>
+      <button class="control" data-command="b3 reset"><span class="icon">↻</span><b>B3 重設</b><span>送出 b3 reset</span></button>
+    </div>
+  </section>
+  <section class="card"><div class="eyebrow">VOICE CONTROL</div><div class="voice" style="margin-top:16px"><button id="mic" class="mic" aria-label="開始語音辨識">🎙</button><div class="voice-copy"><h2 id="voiceStatus">準備就緒</h2><p id="voiceHint">點擊麥克風後只要說「開啟」、「關閉」或「重設」。</p></div></div>
+    <div class="voice-result"><div class="result-label">辨識結果</div><div id="recognized" class="result-text">尚未開始語音辨識</div></div>
+    <div id="errorBox" class="voice-result hidden"><div class="result-label">語音辨識錯誤</div><div id="errorText" class="result-text error"></div></div>
+  </section>
+  <section class="card"><div class="eyebrow">LIVE ACTIVITY</div><div class="activity"><div class="activity-item"><div class="eyebrow">最後送出</div><div id="lastSent" class="value">尚無指令</div><div id="sentTime" class="small" style="margin-top:7px">—</div></div><div class="activity-item"><div class="eyebrow">最後收到</div><div id="lastReceived" class="value">等待訊息</div><div id="receivedTime" class="small" style="margin-top:7px">Topic: jlab/z</div></div></div></section>
+  <p class="footer">語音辨識使用瀏覽器 Web Speech API（中文）。請允許麥克風權限；建議使用 Chrome 或 Edge。<br>語音「開啟／關閉／重設」分別控制上方對應的 B1／B2／B3 按鈕。</p>
+</main>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const clientId = 'mqtt_voice_' + Math.random().toString(16).slice(2, 10);
+  const dot = $('dot');
+  let client;
+  const setConnection = (state, label, detail) => { dot.className = 'dot ' + state; $('connectionText').textContent = label; $('connectionDetail').textContent = detail; };
+  function connect() {
+    if (!window.mqtt) { setConnection('error','連線程式載入失敗','請確認網路可連線後重新整理'); return; }
+    setConnection('connecting','正在連線…','broker.emqx.io · 安全 WebSocket');
+    client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {clientId, clean:true, connectTimeout:10000, reconnectPeriod:3000, keepalive:30});
+    client.on('connect', () => { setConnection('connected','已連線','broker.emqx.io · 自動重連已啟用'); client.subscribe('jlab/z', {qos:0}, err => { if(err) $('connectionDetail').textContent = '已連線，但訂閱失敗：' + err.message; }); });
+    client.on('reconnect', () => setConnection('connecting','重新連線中…','連線中斷，正在自動重試'));
+    client.on('offline', () => setConnection('error','目前離線','網路恢復後會自動重新連線'));
+    client.on('error', err => { setConnection('error','連線錯誤',err.message || '請稍後重試'); });
+    client.on('message', (topic, payload) => { $('lastReceived').textContent = payload.toString(); $('receivedTime').textContent = new Date().toLocaleTimeString('zh-TW'); });
+  }
+  function publish(command) {
+    if (!client || !client.connected) { $('lastSent').textContent = '尚未連線，未送出'; $('sentTime').textContent = new Date().toLocaleTimeString('zh-TW'); return false; }
+    client.publish('jlab/z', command, {qos:0, retain:false}, err => { if(err) { $('lastSent').textContent = '送出失敗：' + err.message; } else { $('lastSent').textContent = command; $('sentTime').textContent = new Date().toLocaleTimeString('zh-TW'); } });
+    return true;
+  }
+  document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', () => publish(button.dataset.command)));
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const mic = $('mic'); let recognition;
+  if (!SpeechRecognition) { mic.disabled = true; $('voiceStatus').textContent = '此瀏覽器不支援語音辨識'; $('voiceHint').textContent = '請使用最新版 Chrome 或 Edge 開啟此頁。'; }
+  else {
+    recognition = new SpeechRecognition(); recognition.lang = 'zh-TW'; recognition.continuous = false; recognition.interimResults = true; recognition.maxAlternatives = 3;
+    mic.addEventListener('click', () => { $('errorBox').classList.add('hidden'); $('recognized').className='result-text'; $('recognized').textContent='正在啟動麥克風…'; try { recognition.start(); } catch(e) { showError('無法啟動辨識，請稍後再試。'); } });
+    recognition.onstart = () => { mic.classList.add('listening'); $('voiceStatus').textContent='正在聆聽…'; $('voiceHint').textContent='只要說「開啟」、「關閉」或「重設」。'; $('recognized').textContent='正在聆聽，請開始說話…'; $('recognized').className='result-text pending'; };
+    recognition.onresult = event => {
+      const finalResult = event.results[event.results.length - 1];
+      const transcript = Array.from(event.results).map(item=>item[0].transcript).join(''); $('recognized').textContent=transcript || '正在辨識…';
+      if (!finalResult.isFinal) return;
+      const parsed = parseCommand(transcript);
+      if (!parsed) { $('recognized').className='result-text error'; $('voiceStatus').textContent='未辨識為有效指令'; $('voiceHint').textContent='請說清楚「開啟／關閉／重設」及「B1／B2／B3」。'; return; }
+      $('recognized').className='result-text success'; $('recognized').textContent=transcript+' → '+parsed.command;
+      $('voiceStatus').textContent=publish(parsed.command)?'指令已送出':'MQTT 尚未連線'; $('voiceHint').textContent='已觸發 '+parsed.button+' · Topic jlab/z';
+    };
+    recognition.onerror = event => { const messages={ 'not-allowed':'麥克風權限遭拒，請在瀏覽器設定中允許使用麥克風。','no-speech':'沒有收到語音，請再試一次。','audio-capture':'找不到麥克風裝置。','network':'語音辨識網路服務暫時無法使用。','aborted':'語音辨識已中止。' }; showError(messages[event.error] || ('辨識發生問題：'+event.error)); };
+    recognition.onend = () => { mic.classList.remove('listening'); if ($('voiceStatus').textContent==='正在聆聽…') $('voiceStatus').textContent='辨識已結束'; };
+  }
+  function parseCommand(raw) {
+    const text=raw.toLowerCase().replace(/[\s　，。！？、,.!?]/g,'');
+    const commands={ '開啟':{button:'B1 開啟',command:'b1 on'}, '關閉':{button:'B2 關閉',command:'b2 off'}, '重設':{button:'B3 重設',command:'b3 reset'} };
+    return commands[text] || null;
+  }
+  function showError(message) { $('errorBox').classList.remove('hidden'); $('errorText').textContent=message; $('voiceStatus').textContent='語音辨識發生錯誤'; $('voiceHint').textContent='確認麥克風權限與網路後可以再次嘗試。'; $('recognized').className='result-text error'; $('recognized').textContent='尚未取得有效辨識結果'; }
+  connect();
+})();
+</script>
+</body>
+</html>
